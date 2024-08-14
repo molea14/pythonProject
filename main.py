@@ -3,7 +3,7 @@ Platformer Game
 
 python -m arcade.examples.platform_tutorial.11_animate_character
 """
-
+import math
 
 import os
 
@@ -53,32 +53,20 @@ def load_texture_pair(filename):
     ]
 
 
-class PlayerCharacter(arcade.Sprite):
-    """Player Sprite"""
-
-    def __init__(self):
-
-        # Set up parent class
+class Entity(arcade.Sprite):
+    def __init__(self, name_folder, name_file):
         super().__init__()
 
-        # Default to face-right
-        self.character_face_direction = RIGHT_FACING
+        # Default to facing right
+        self.facing_direction = RIGHT_FACING
 
-        # Used for flipping between image sequences
+        # Used for image sequences
         self.cur_texture = 0
         self.scale = CHARACTER_SCALING
+        self.character_face_direction = RIGHT_FACING
 
-        # Track our state
-        self.jumping = False
-        self.climbing = False
-        self.is_on_ladder = False
+        main_path = f":resources:images/animated_characters/{name_folder}/{name_file}"
 
-        # --- Load Textures ---
-
-        # Images from Kenney.nl's Asset Pack 3
-        main_path = ":resources:images/animated_characters/male_person/malePerson"
-
-        # Load textures for idle standing
         self.idle_texture_pair = load_texture_pair(f"{main_path}_idle.png")
         self.jump_texture_pair = load_texture_pair(f"{main_path}_jump.png")
         self.fall_texture_pair = load_texture_pair(f"{main_path}_fall.png")
@@ -103,6 +91,41 @@ class PlayerCharacter(arcade.Sprite):
         # a different hit box, you can do it like the code below.
         # set_hit_box = [[-22, -64], [22, -64], [22, 28], [-22, 28]]
         self.hit_box = self.texture.hit_box_points
+
+
+class Enemy(Entity):
+    def __init__(self, name_folder, name_file):
+
+        # Setup parent class
+        super().__init__(name_folder, name_file)
+
+
+class RobotEnemy(Enemy):
+    def __init__(self):
+
+        # Set up parent class
+        super().__init__("robot", "robot")
+
+
+class ZombieEnemy(Enemy):
+    def __init__(self):
+
+        # Set up parent class
+        super().__init__("zombie", "zombie")
+
+
+class PlayerCharacter(Entity):
+    """Player Sprite"""
+
+    def __init__(self):
+
+        # Set up parent class
+        super().__init__("female_adventurer", "femaleAdventurer")
+
+        # Track our state
+        self.jumping = False
+        self.climbing = False
+        self.is_on_ladder = False
 
     def update_animation(self, delta_time: float = 1 / 60):
 
@@ -198,7 +221,7 @@ class MyGame(arcade.Window):
         self.score = 0
 
         # What level are you on?
-        self.level = 1
+        self.level = 5
 
         # Load sounds
         self.collect_coin_sound = arcade.load_sound(":resources:sounds/coin1.wav")
@@ -260,7 +283,27 @@ class MyGame(arcade.Window):
         # Calculate the right edge of the my_map in pixels
         self.end_of_map = self.tile_map.width * GRID_PIXEL_SIZE
 
+        # -- Enemies
+        enemies_layer = self.tile_map.object_lists[LAYER_NAME_ENEMIES]
 
+        for my_object in enemies_layer:
+            cartesian = self.tile_map.get_cartesian(
+                my_object.shape[0], my_object.shape[1]
+            )
+            enemy_type = my_object.properties["type"]
+            if enemy_type == "robot":
+                enemy = RobotEnemy()
+            elif enemy_type == "zombie":
+                enemy = ZombieEnemy()
+            else:
+                raise Exception(f"Unknown enemy type {enemy_type}.")
+            enemy.center_x = math.floor(
+                cartesian[0] * TILE_SCALING * self.tile_map.tile_width
+            )
+            enemy.center_y = math.floor(
+                (cartesian[1] + 1) * (self.tile_map.tile_height * TILE_SCALING)
+            )
+            self.scene.add_sprite(LAYER_NAME_ENEMIES, enemy)
 
         # --- Other stuff
         # Set the background color
@@ -297,7 +340,7 @@ class MyGame(arcade.Window):
             score_text,
             10,
             10,
-            arcade.csscolor.BLACK,
+            arcade.csscolor.WHITE,
             18,
         )
 
