@@ -21,6 +21,12 @@ COIN_SCALING = TILE_SCALING
 SPRITE_PIXEL_SIZE = 128
 GRID_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
 
+# Shooting Constants
+SPRITE_SCALING_LASER = 0.8
+SHOOT_SPEED = 15
+BULLET_SPEED = 12
+BULLET_DAMAGE = 25
+
 # Movement speed of player, in pixels per frame
 PLAYER_MOVEMENT_SPEED = 7
 GRAVITY = 1.5
@@ -42,6 +48,7 @@ LAYER_NAME_PLAYER = "Player"
 LAYER_NAME_DONT_TOUCH = "Don't Touch"
 LAYER_NAME_KEYS = "Keys"
 LAYER_NAME_ENEMIES = "Enemies"
+LAYER_NAME_BULLETS = "Bullets"
 
 def load_texture_pair(filename):
     """
@@ -192,6 +199,7 @@ class MyGame(arcade.Window):
         self.right_pressed = False
         self.up_pressed = False
         self.down_pressed = False
+        self.shoot_pressed = False
         self.jump_needs_reset = False
 
         # Our TileMap Object
@@ -220,6 +228,10 @@ class MyGame(arcade.Window):
         # Keep track of the score
         self.score = 0
 
+        # Shooting mechanics
+        self.can_shoot = False
+        self.shoot_timer = 0
+
         # What level are you on?
         self.level = 5
 
@@ -228,6 +240,8 @@ class MyGame(arcade.Window):
         self.jump_sound = arcade.load_sound(":resources:sounds/jump1.wav")
         self.game_over = arcade.load_sound(":resources:sounds/gameover1.wav")
         self.collect_key_sound = arcade.load_sound(":resources:sounds/coin4.wav")
+        self.shoot_sound = arcade.load_sound(":resources:sounds/hurt5.wav")
+        self.hit_sound = arcade.load_sound(":resources:sounds/hit5.wav")
 
     def setup(self):
         """Set up the game here. Call this function to restart the game."""
@@ -274,6 +288,10 @@ class MyGame(arcade.Window):
         # Keep track of the score
         self.score = 0
 
+        # Shooting mechanics
+        self.can_shoot = True
+        self.shoot_timer = 0
+
         # Set up the player, specifically placing it at these coordinates.
         self.player_sprite = PlayerCharacter()
         self.player_sprite.center_x = PLAYER_START_X
@@ -283,27 +301,8 @@ class MyGame(arcade.Window):
         # Calculate the right edge of the my_map in pixels
         self.end_of_map = self.tile_map.width * GRID_PIXEL_SIZE
 
-        # -- Enemies
-        enemies_layer = self.tile_map.object_lists[LAYER_NAME_ENEMIES]
-
-        for my_object in enemies_layer:
-            cartesian = self.tile_map.get_cartesian(
-                my_object.shape[0], my_object.shape[1]
-            )
-            enemy_type = my_object.properties["type"]
-            if enemy_type == "robot":
-                enemy = RobotEnemy()
-            elif enemy_type == "zombie":
-                enemy = ZombieEnemy()
-            else:
-                raise Exception(f"Unknown enemy type {enemy_type}.")
-            enemy.center_x = math.floor(
-                cartesian[0] * TILE_SCALING * self.tile_map.tile_width
-            )
-            enemy.center_y = math.floor(
-                (cartesian[1] + 1) * (self.tile_map.tile_height * TILE_SCALING)
-            )
-            self.scene.add_sprite(LAYER_NAME_ENEMIES, enemy)
+        # Add bullet spritelist to Scene
+        self.scene.add_sprite_list(LAYER_NAME_BULLETS)
 
         # --- Other stuff
         # Set the background color
@@ -396,6 +395,9 @@ class MyGame(arcade.Window):
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = True
 
+        if key == arcade.key.Q:
+            self.shoot_pressed = True
+
         self.process_keychange()
 
     def on_key_release(self, key, modifiers):
@@ -410,6 +412,9 @@ class MyGame(arcade.Window):
             self.left_pressed = False
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = False
+
+        if key == arcade.key.Q:
+            self.shoot_pressed = False
 
         self.process_keychange()
 
@@ -444,6 +449,31 @@ class MyGame(arcade.Window):
         else:
             self.player_sprite.is_on_ladder = False
             self.process_keychange()
+
+        if self.can_shoot:
+            if self.shoot_pressed:
+                arcade.play_sound(self.shoot_sound)
+                bullet = arcade.Sprite(
+                    ":resources:images/space_shooter/laserBlue01.png",
+                    SPRITE_SCALING_LASER,
+                )
+
+                if self.player_sprite.facing_direction == RIGHT_FACING:
+                    bullet.change_x = BULLET_SPEED
+                else:
+                    bullet.change_x = -BULLET_SPEED
+
+                bullet.center_x = self.player_sprite.center_x
+                bullet.center_y = self.player_sprite.center_y
+
+                self.scene.add_sprite(LAYER_NAME_BULLETS, bullet)
+
+                self.can_shoot = False
+        else:
+            self.shoot_timer += 1
+            if self.shoot_timer == SHOOT_SPEED:
+                self.can_shoot = True
+                self.shoot_timer = 0
 
         # Update Animations
         self.scene.update_animation(
