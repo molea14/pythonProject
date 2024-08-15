@@ -38,8 +38,8 @@ RIGHT_VIEWPORT_MARGIN = 200
 BOTTOM_VIEWPORT_MARGIN = 150
 TOP_VIEWPORT_MARGIN = 100
 
-PLAYER_START_X = 2
-PLAYER_START_Y = 1
+PLAYER_START_X = 64
+PLAYER_START_Y = 255
 
 # Constants used to track if the player is facing left or right
 RIGHT_FACING = 0
@@ -53,6 +53,7 @@ LAYER_NAME_LADDERS = "Ladders"
 LAYER_NAME_PLAYER = "Player"
 LAYER_NAME_ENEMIES = "Enemies"
 LAYER_NAME_BULLETS = "Bullets"
+LAYER_NAME_DONT_TOUCH = "Don't Touch"
 
 
 def load_texture_pair(filename):
@@ -106,54 +107,19 @@ class Entity(arcade.Sprite):
 
 class Enemy(Entity):
     def __init__(self, name_folder, name_file):
-
-        # Setup parent class
         super().__init__(name_folder, name_file)
-
         self.should_update_walk = 0
-        self.health = 0
-
-    def update_animation(self, delta_time: float = 1 / 60):
-
-        # Figure out if we need to flip face left or right
-        if self.change_x < 0 and self.facing_direction == RIGHT_FACING:
-            self.facing_direction = LEFT_FACING
-        elif self.change_x > 0 and self.facing_direction == LEFT_FACING:
-            self.facing_direction = RIGHT_FACING
-
-        # Idle animation
-        if self.change_x == 0:
-            self.texture = self.idle_texture_pair[self.facing_direction]
-            return
-
-        # Walking animation
-        if self.should_update_walk == 3:
-            self.cur_texture += 1
-            if self.cur_texture > 7:
-                self.cur_texture = 0
-            self.texture = self.walk_textures[self.cur_texture][self.facing_direction]
-            self.should_update_walk = 0
-            return
-
-        self.should_update_walk += 1
-
+        self.health = 0  # Ensure this is defined here
 
 class RobotEnemy(Enemy):
     def __init__(self):
-
-        # Set up parent class
         super().__init__("robot", "robot")
-
-        self.health = 100
-
+        self.health = 100  # Robot-specific health
 
 class ZombieEnemy(Enemy):
     def __init__(self):
-
-        # Set up parent class
         super().__init__("zombie", "zombie")
-
-        self.health = 50
+        self.health = 50  # Zombie-specific health
 
 
 class PlayerCharacter(Entity):
@@ -277,52 +243,38 @@ class MyGame(arcade.Window):
         self.gui_camera = arcade.Camera(self.width, self.height)
 
         # Map name
-        map_name = ("/Users/margoolea/Documents/Final_Project/Final_Project/lvl_6.tmx")
+        map_name = "/Users/margoolea/Documents/Final_Project/Final_Project/lvl_6.tmx"
 
         # Layer Specific Options for the Tilemap
         layer_options = {
-            LAYER_NAME_PLATFORMS: {
-                "use_spatial_hash": True,
-            },
-            LAYER_NAME_MOVING_PLATFORMS: {
-                "use_spatial_hash": False,
-            },
-            LAYER_NAME_LADDERS: {
-                "use_spatial_hash": True,
-            },
-            LAYER_NAME_COINS: {
-                "use_spatial_hash": True,
-            },
+            LAYER_NAME_PLATFORMS: {"use_spatial_hash": True},
+            LAYER_NAME_MOVING_PLATFORMS: {"use_spatial_hash": False},
+            LAYER_NAME_LADDERS: {"use_spatial_hash": True},
+            LAYER_NAME_COINS: {"use_spatial_hash": True},
         }
 
         # Load in TileMap
         self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING, layer_options)
 
         # Debug output: Print available object lists
-        print("Object Lists:")
+        print("Object lists available in the tile map:")
         for layer_name in self.tile_map.object_lists:
-            print(layer_name)
+            print(f"Layer: {layer_name}, Objects: {len(self.tile_map.object_lists[layer_name])}")
 
         # Initiate New Scene with our TileMap
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
 
         # Set up the player
         self.player_sprite = PlayerCharacter()
-        self.player_sprite.center_x = (
-                self.tile_map.tile_width * TILE_SCALING * PLAYER_START_X
-        )
-        self.player_sprite.center_y = (
-                self.tile_map.tile_height * TILE_SCALING * PLAYER_START_Y
-        )
+        self.player_sprite.center_x = self.tile_map.tile_width * TILE_SCALING * PLAYER_START_X
+        self.player_sprite.center_y = self.tile_map.tile_height * TILE_SCALING * PLAYER_START_Y
         self.scene.add_sprite(LAYER_NAME_PLAYER, self.player_sprite)
 
         # Calculate the right edge of the map in pixels
         self.end_of_map = self.tile_map.width * GRID_PIXEL_SIZE
 
         # Debugging output for tile_map object_lists
-        print("Object lists available in the tile map:")
-        for key in self.tile_map.object_lists:
-            print(f"Layer: {key}, Objects: {len(self.tile_map.object_lists[key])}")
+
 
         # -- Enemies
         enemies_layer = self.tile_map.object_lists.get(LAYER_NAME_ENEMIES, None)
@@ -330,29 +282,34 @@ class MyGame(arcade.Window):
             print(f"Warning: Layer '{LAYER_NAME_ENEMIES}' not found in the tile map.")
         else:
             for my_object in enemies_layer:
-                cartesian = self.tile_map.get_cartesian(
-                    my_object.shape[0], my_object.shape[1]
-                )
-                enemy_type = my_object.properties.get("type")
+                print("Object properties:", my_object.properties)
+                enemy_type = my_object.properties.get("type", "default")
+                print(f"Found enemy with type: {enemy_type}")
                 if enemy_type == "robot":
                     enemy = RobotEnemy()
                 elif enemy_type == "zombie":
                     enemy = ZombieEnemy()
-                enemy.center_x = math.floor(
-                    cartesian[0] * TILE_SCALING * self.tile_map.tile_width
-                )
-                enemy.center_y = math.floor(
-                    (cartesian[1] + 1) * (self.tile_map.tile_height * TILE_SCALING)
-                )
+                else:
+                    print(f"Unknown enemy type '{enemy_type}', skipping.")
+                    continue
+
+                # Retrieve coordinates
+                cartesian = (my_object.center_x, my_object.center_y)  # Adjust according to actual coordinate retrieval
+
+                enemy.center_x = cartesian[0]
+                enemy.center_y = cartesian[1]
+
+                # Set additional properties if available
                 if "boundary_left" in my_object.properties:
                     enemy.boundary_left = my_object.properties["boundary_left"]
                 if "boundary_right" in my_object.properties:
                     enemy.boundary_right = my_object.properties["boundary_right"]
                 if "change_x" in my_object.properties:
                     enemy.change_x = my_object.properties["change_x"]
+
                 self.scene.add_sprite(LAYER_NAME_ENEMIES, enemy)
 
-        # Add bullet spritelist to Scene
+        # Add bullet sprite list to Scene
         self.scene.add_sprite_list(LAYER_NAME_BULLETS)
 
         # -- Other stuff
@@ -368,8 +325,6 @@ class MyGame(arcade.Window):
             ladders=self.scene[LAYER_NAME_LADDERS],
             walls=self.scene[LAYER_NAME_PLATFORMS]
         )
-
-
 
     def on_draw(self):
         """Render the screen."""
@@ -545,7 +500,7 @@ class MyGame(arcade.Window):
         )
 
         # See if the enemy hit a boundary and needs to reverse direction.
-        for enemy in self.scene['Enemies']:
+        for enemy in self.scene[LAYER_NAME_ENEMIES]:
             if (
                 enemy.boundary_right
                 and enemy.right > enemy.boundary_right
@@ -574,16 +529,9 @@ class MyGame(arcade.Window):
                 bullet.remove_from_sprite_lists()
 
                 for collision in hit_list:
-                    if (
-                        self.scene[LAYER_NAME_ENEMIES]
-                        in collision.sprite_lists
-                    ):
+                    if self.scene[LAYER_NAME_ENEMIES] in collision.sprite_lists:
                         # The collision was with an enemy
                         collision.health -= BULLET_DAMAGE
-
-                        if collision.health <= 0:
-                            collision.remove_from_sprite_lists()
-                            self.score += 100
 
                         # Hit sound
                         arcade.play_sound(self.hit_sound)
@@ -612,16 +560,33 @@ class MyGame(arcade.Window):
                 self.setup()
                 return
             else:
-                # Figure out how many points this coin is worth
-                if "Points" not in collision.properties:
-                    print("Warning, collected a coin without a Points property.")
-                else:
-                    points = int(collision.properties["Points"])
-                    self.score += points
-
                 # Remove the coin
                 collision.remove_from_sprite_lists()
+                # Play a sound
                 arcade.play_sound(self.collect_coin_sound)
+                # Add one to the score
+                self.score += 1
+
+
+        if self.player_sprite.center_y <= 100:
+            self.player_sprite.change_x = 0
+            self.player_sprite.change_y = 0
+            self.player_sprite.center_x = PLAYER_START_X
+            self.player_sprite.center_y = PLAYER_START_Y
+
+            # Did the player touch something they should not?
+        if arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene[LAYER_NAME_DONT_TOUCH]
+        ):
+            self.player_sprite.change_x = 0
+            self.player_sprite.change_y = 0
+            self.player_sprite.center_x = PLAYER_START_X
+            self.player_sprite.center_y = PLAYER_START_Y
+
+            # See if the user got to the end of the level
+            if self.player_sprite.center_x >= self.end_of_map:
+                # Advance to the next level
+                self.level += 1
 
         # Position the camera
         self.center_camera_to_player()
@@ -629,6 +594,7 @@ class MyGame(arcade.Window):
 
 def main():
     """Main function"""
+
     window = MyGame()
     window.setup()
     arcade.run()
@@ -636,3 +602,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
